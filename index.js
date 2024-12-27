@@ -5,55 +5,51 @@ const app = express();
 
 // Configuração do contrato do token e da API do PolygonScan
 const CONTRACT_ADDRESS = "0x4cfe63294dac27ce941d42a778a37f2b35fea21b";
-const API_KEY = process.env.POLYGONSCAN_API_KEY; // Configure esta variável no .env
+const API_KEY = process.env.POLYGONSCAN_API_KEY; // Configure no .env
 
-// Rota para Total Supply
-app.get("/total-supply", async (req, res) => {
+// Endpoint dinâmico para Total Supply e Circulating Supply
+app.get("/api", async (req, res) => {
   try {
-    const response = await axios.get(
-      `https://api.polygonscan.com/api?module=stats&action=tokensupply&contractaddress=${CONTRACT_ADDRESS}&apikey=${API_KEY}`
-    );
-    const totalSupply = parseInt(response.data.result, 10);
-    res.send(totalSupply.toString()); // Retorna apenas o valor numérico
-  } catch (error) {
-    console.error("Erro ao obter o Total Supply:", error);
-    res.status(500).send("Erro ao obter Total Supply.");
-  }
-});
+    // Obtém o parâmetro "supply" da URL
+    const supplyType = req.query.supply;
 
-// Rota para Circulating Supply
-app.get("/circulating-supply", async (req, res) => {
-  try {
+    // Obter Total Supply
     const totalSupplyResponse = await axios.get(
       `https://api.polygonscan.com/api?module=stats&action=tokensupply&contractaddress=${CONTRACT_ADDRESS}&apikey=${API_KEY}`
     );
     const totalSupply = parseInt(totalSupplyResponse.data.result, 10);
 
-    // Lista de endereços bloqueados (substitua pelos endereços reais)
-    const blockedAddresses = [
-      "0xBlockedAddress1",
-      "0xBlockedAddress2"
-    ];
+    if (supplyType === "total") {
+      // Retorna Total Supply
+      return res.send(totalSupply.toString());
+    }
 
-    // Calcula os tokens bloqueados
-    let blockedTokens = 0;
-    for (const address of blockedAddresses) {
-      try {
+    if (supplyType === "circulating") {
+      // Lista de endereços bloqueados
+      const blockedAddresses = [
+        "0xBlockedAddress1",
+        "0xBlockedAddress2"
+      ];
+
+      // Calcula os tokens bloqueados
+      let blockedTokens = 0;
+      for (const address of blockedAddresses) {
         const balanceResponse = await axios.get(
           `https://api.polygonscan.com/api?module=account&action=tokenbalance&contractaddress=${CONTRACT_ADDRESS}&address=${address}&apikey=${API_KEY}`
         );
         blockedTokens += parseInt(balanceResponse.data.result, 10);
-      } catch (error) {
-        console.error(`Erro ao obter saldo do endereço ${address}:`, error);
       }
+
+      // Calcula o Circulating Supply
+      const circulatingSupply = totalSupply - blockedTokens;
+      return res.send(circulatingSupply.toString());
     }
 
-    // Calcula o Circulating Supply
-    const circulatingSupply = totalSupply - blockedTokens;
-    res.send(circulatingSupply.toString()); // Retorna apenas o valor numérico
+    // Se o parâmetro for inválido
+    res.status(400).send("Parâmetro inválido. Use 'supply=total' ou 'supply=circulating'.");
   } catch (error) {
-    console.error("Erro ao calcular o Circulating Supply:", error);
-    res.status(500).send("Erro ao calcular Circulating Supply.");
+    console.error("Erro ao obter os dados:", error);
+    res.status(500).send("Erro ao processar a requisição.");
   }
 });
 
